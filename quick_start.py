@@ -6,7 +6,7 @@
 
 import os
 import requests
-from flask import Flask, render_template_string, session, url_for, redirect, request
+from flask import Flask, render_template_string, session, url_for, redirect, request, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_user import login_required, UserManager, UserMixin, current_user
 import sys
@@ -129,6 +129,7 @@ def create_app():
                     <p><a href={{ url_for('user.logout') }}>Sign out</a></p>
                 {% endblock %}
                 """)
+        flash('login required')
         return redirect(url_for('home_page'))
 
     @app.route("/fb-login")
