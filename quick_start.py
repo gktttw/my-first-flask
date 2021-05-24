@@ -5,6 +5,7 @@
 # - Using string-based templates (instead of file-based templates)
 
 import os
+import requests
 from flask import Flask, render_template_string, session, url_for, redirect, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_user import login_required, UserManager, UserMixin, current_user
@@ -23,6 +24,10 @@ FB_AUTHORIZATION_BASE_URL = "https://www.facebook.com/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/oauth/access_token"
 
 FB_SCOPE = ["email"]
+
+LINE_CALLBACK = "http://localhost:5000/line-callback"
+LINE_CLIENT_ID = "1656010390"
+LINE_CLIENT_SECRET = "a135481b4573209711067c4bb920b131"
 
 # This allows us to use a plain HTTP callback
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -89,12 +94,13 @@ def create_app():
         print(current_user.is_active, file=sys.stderr) """
         # String-based templates
         sss = None
-        if current_user.is_active:
+        if current_user.is_active or dict(session).get('username', None):
             sss = ""
         else:
             sss = """<p><a href={{ url_for('user.register') }}>Register</a></p>
                 <p><a href={{ url_for('user.login') }}>Sign in</a></p>
                 <p><a href="/fb-login">Login with Facebook</a></p>
+                <p><a href="/line-login">Login with Line</a></p>
                 """
         return render_template_string(f"""
             {{% extends "flask_user_layout.html" %}}
@@ -169,6 +175,44 @@ def create_app():
         Avatar <img src="{picture_url}"> <br>
         <a href="/">Home</a>
         """
+        return redirect(url_for('home_page'))
+
+    @app.route("/line-login")
+    def line_login():
+
+        return redirect("https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=1656010390&state=12345abcde&scope=profile%20openid&redirect_uri=http://localhost:5000/line-callback")
+
+    @app.route("/line-callback")
+    def line_callback():
+        line_code = request.args.get('code')
+        
+        # request line token
+        token = requests.post(
+            "https://api.line.me/oauth2/v2.1/token",
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            data = {
+                'grant_type': 'authorization_code',
+                'code': line_code,
+                'redirect_uri': LINE_CALLBACK,
+                'client_id': LINE_CLIENT_ID,
+                'client_secret': LINE_CLIENT_SECRET
+            }
+        )
+
+        # access token to get user info from line
+        line_info = requests.post(
+            "https://api.line.me/oauth2/v2.1/verify",
+            data = {
+                'id_token': token.json()['id_token'],
+                'client_id': LINE_CLIENT_ID
+            }
+        )
+
+        session['username'] = line_info.json()['name']
+        session['picture_url'] = line_info.json()['picture']
+
         return redirect(url_for('home_page'))
 
     return app
